@@ -107,9 +107,9 @@ class UserDetailView(DetailView):
                 .filter(author=user).order_by("-pub_date")
         else:
             posts = Post.objects \
-                .annotate(comment_count=Count('comments')).filter(
-                author=user, pub_date__lte=timezone.now(), is_published=True
-            ).order_by("-pub_date")
+                .annotate(comment_count=Count('comments')) \
+                .filter(author=user, pub_date__lte=timezone.now(), is_published=True) \
+                .order_by("-pub_date")
 
         paginator = Paginator(posts, self.paginate_by)
         page_number = self.request.GET.get("page")
