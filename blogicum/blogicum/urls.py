@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.urls import include, path, reverse_lazy
-from django.contrib.auth import views
 from django.contrib.auth.forms import UserCreationForm
 from django.views.generic.edit import CreateView
 
@@ -22,4 +21,3 @@ urlpatterns = [
         name='registration',
     ),
 ]
-

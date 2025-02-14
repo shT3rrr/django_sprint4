@@ -96,7 +96,11 @@ class Post(models.Model):
         auto_now_add=True,
         verbose_name='Добавлено'
     )
-    image = models.ImageField(verbose_name='Фото', upload_to='post_images', blank=True)
+    image = models.ImageField(
+        verbose_name='Фото',
+        upload_to='post_images',
+        blank=True
+    )
 
     class Meta:
         verbose_name = 'публикация'
@@ -112,7 +116,7 @@ class Comment(models.Model):
         'Post',
         on_delete=models.CASCADE,
         verbose_name='Пост',
-        related_name = 'comments'
+        related_name='comments'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     author = models.ForeignKey(User, on_delete=models.CASCADE)

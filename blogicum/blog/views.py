@@ -102,9 +102,12 @@ class UserDetailView(DetailView):
         user = self.get_object()
 
         if self.request.user == user:
-            posts = Post.objects.annotate(comment_count=Count('comments')).filter(author=user).order_by("-pub_date")
+            posts = Post.objects \
+                .annotate(comment_count=Count('comments')) \
+                .filter(author=user).order_by("-pub_date")
         else:
-            posts = Post.objects.annotate(comment_count=Count('comments')).filter(
+            posts = Post.objects \
+                .annotate(comment_count=Count('comments')).filter(
                 author=user, pub_date__lte=timezone.now(), is_published=True
             ).order_by("-pub_date")
 
@@ -124,7 +127,10 @@ class PostCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy("blog:profile", kwargs={"username": self.request.user.username})
+        return reverse_lazy(
+            "blog:profile",
+            kwargs={"username": self.request.user.username}
+        )
 
 
 class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
@@ -136,7 +142,9 @@ class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return self.get_object().author == self.request.user
 
     def handle_no_permission(self):
-        return redirect(reverse("blog:post_detail", kwargs={"pk": self.get_object().pk}))
+        return redirect(
+            reverse("blog:post_detail", kwargs={"pk": self.get_object().pk})
+        )
 
     def get_success_url(self):
         return reverse_lazy("blog:post_detail", kwargs={"pk": self.object.pk})
@@ -167,7 +175,10 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
         return self.request.user
 
     def get_success_url(self):
-        return reverse_lazy("blog:profile", kwargs={"username": self.request.user.username})
+        return reverse_lazy(
+            "blog:profile",
+            kwargs={"username": self.request.user.username}
+        )
 
 
 class CommentCreateView(LoginRequiredMixin, SingleObjectMixin, FormView):
@@ -220,4 +231,7 @@ class CommentDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         return context
 
     def get_success_url(self):
-        return reverse_lazy('blog:post_detail', kwargs={'pk': self.object.post.pk})
+        return reverse_lazy(
+            'blog:post_detail',
+            kwargs={'pk': self.object.post.pk}
+        )
