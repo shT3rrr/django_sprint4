@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.db.models import Count
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -105,9 +107,24 @@ class Post(models.Model):
     class Meta:
         verbose_name = 'публикация'
         verbose_name_plural = 'Публикации'
+        ordering = ['-pub_date']
 
     def __str__(self):
         return self.title
+
+    @classmethod
+    def published(cls, is_for_author):
+        if is_for_author:
+            posts = cls.objects
+
+        else:
+            posts = cls.objects.filter(
+                pub_date__lte=timezone.now(),
+                is_published=True,
+                category__is_published=True
+            )
+
+        return posts.annotate(comment_count=Count('comments'))
 
 
 class Comment(models.Model):

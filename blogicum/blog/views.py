@@ -1,11 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
-from django.db.models import Count
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
-from django.utils import timezone
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -28,11 +26,7 @@ class PostListView(ListView):
     ordering = "-pub_date"
 
     def get_queryset(self):
-        return Post.objects.annotate(comment_count=Count('comments')).filter(
-            pub_date__lte=timezone.now(),
-            is_published=True,
-            category__is_published=True
-        ).order_by(self.ordering)
+        return Post.published(False).order_by(*Post._meta.ordering)
 
 
 class CategoryListView(ListView):
@@ -43,17 +37,13 @@ class CategoryListView(ListView):
     ordering = "-pub_date"
 
     def dispatch(self, request, *args, **kwargs):
-        self.category = get_object_or_404(Category, slug=kwargs["slug"])
+        self.category = get_object_or_404(Category, slug=kwargs["category_slug"])
         if not self.category.is_published:
             raise Http404("Категория не найдена или была снята с публикации.")
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
-        return Post.objects.annotate(comment_count=Count('comments')).filter(
-            category=self.category,
-            is_published=True,
-            pub_date__lte=timezone.now(),
-        ).order_by(self.ordering)
+        return Post.published(False).order_by(*Post._meta.ordering)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -66,16 +56,17 @@ class PostDetailView(DetailView):
     template_name = "blog/detail.html"
 
     def get_object(self, queryset=None):
-        obj = super().get_object(queryset)
-        now = timezone.now()
-        is_author = self.request.user == obj.author
-        if (
-                obj.pub_date > now
-                or not obj.is_published
-                or not obj.category.is_published
-        ) and not is_author:
+        post = get_object_or_404(Post, id=self.kwargs['post_id'])
+
+        is_author = self.request.user == post.author
+
+        if not post.is_published and not is_author:
             raise Http404("Публикация не найдена.")
-        return obj
+
+        if post.is_published:
+            return post
+
+        return get_object_or_404(Post.published(True), id=self.kwargs['post_id'])
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -102,18 +93,11 @@ class UserDetailView(DetailView):
         user = self.get_object()
 
         if self.request.user == user:
-            posts = Post.objects \
-                .annotate(comment_count=Count('comments')) \
-                .filter(author=user).order_by("-pub_date")
+            posts = Post.published(True) \
+                .filter(author=user).order_by(*Post._meta.ordering)
         else:
-            posts = Post.objects \
-                .annotate(comment_count=Count('comments')) \
-                .filter(
-                    author=user,
-                    pub_date__lte=timezone.now(),
-                    is_published=True
-                ) \
-                .order_by("-pub_date")
+            posts = Post.published(False) \
+                .order_by(*Post._meta.ordering)
 
         paginator = Paginator(posts, self.paginate_by)
         page_number = self.request.GET.get("page")
@@ -147,11 +131,11 @@ class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def handle_no_permission(self):
         return redirect(
-            reverse("blog:post_detail", kwargs={"pk": self.get_object().pk})
+            reverse("blog:post_detail", kwargs={"post_id": self.get_object().id})
         )
 
     def get_success_url(self):
-        return reverse_lazy("blog:post_detail", kwargs={"pk": self.object.pk})
+        return reverse_lazy("blog:post_detail", kwargs={"post_id": self.object.id})
 
 
 class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
@@ -190,6 +174,9 @@ class CommentCreateView(LoginRequiredMixin, SingleObjectMixin, FormView):
     form_class = CommentForm
     model = Post
 
+    def get_object(self, queryset=None):
+        return get_object_or_404(Post, id=self.kwargs['post_id'])
+
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         return super().post(request, *args, **kwargs)
@@ -202,7 +189,7 @@ class CommentCreateView(LoginRequiredMixin, SingleObjectMixin, FormView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse("blog:post_detail", kwargs={"pk": self.object.pk})
+        return reverse("blog:post_detail", kwargs={"post_id": self.object.pk})
 
 
 class CommentUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
@@ -218,8 +205,11 @@ class CommentUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         context["comment"] = self.get_object()
         return context
 
+    def get_object(self, queryset=None):
+        return get_object_or_404(Comment, id=self.kwargs['comment_id'])
+
     def get_success_url(self):
-        return reverse("blog:post_detail", kwargs={"pk": self.object.post.pk})
+        return reverse("blog:post_detail", kwargs={"post_id": self.object.post.pk})
 
 
 class CommentDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
@@ -234,8 +224,11 @@ class CommentDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         context['comment'] = self.get_object()
         return context
 
+    def get_object(self, queryset=None):
+        return get_object_or_404(Comment, id=self.kwargs['comment_id'])
+
     def get_success_url(self):
         return reverse_lazy(
             'blog:post_detail',
-            kwargs={'pk': self.object.post.pk}
+            kwargs={'post_id': self.object.post.pk}
         )
